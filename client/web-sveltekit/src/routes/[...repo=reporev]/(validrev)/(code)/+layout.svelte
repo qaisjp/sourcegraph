@@ -17,6 +17,7 @@
     import type { GitHistory_HistoryConnection } from './layout.gql'
     import Tabs from '$lib/Tabs.svelte'
     import TabPanel from '$lib/TabPanel.svelte'
+    import ReferencePanel from './ReferencePanel.svelte'
 
     export let data: LayoutData
 
@@ -160,6 +161,17 @@
                         />
                     {/key}
                 </TabPanel>
+                {#if data.references && $page.route.id?.includes('/blob/')}
+                    <TabPanel title="References">
+                        {#await data.references}
+                            <LoadingSpinner center={false} />
+                        {:then result}
+                            {#if result.data.node?.__typename === 'Repository' && result.data.node.commit?.blob?.lsif}
+                                <ReferencePanel connection={result.data.node.commit.blob.lsif.references} />
+                            {/if}
+                        {/await}
+                    </TabPanel>
+                {/if}
             </Tabs>
         </div>
     </div>

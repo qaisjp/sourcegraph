@@ -3,7 +3,7 @@ import { from, type Subscription } from 'rxjs'
 import { switchMap, map, startWith } from 'rxjs/operators'
 import { get, writable, type Readable, readonly } from 'svelte/store'
 
-import { goto as svelteGoto } from '$app/navigation'
+import { goto, goto as svelteGoto } from '$app/navigation'
 import { page } from '$app/stores'
 import { addLineRangeQueryParameter, formatSearchParameters, toPositionOrRangeQueryParameter } from '$lib/common'
 import {
@@ -17,6 +17,7 @@ import {
 } from '$lib/web'
 
 import type { BlobPage_Blob } from '../../routes/[...repo=reporev]/(validrev)/(code)/-/blob/[...path]/page.gql'
+import { toPrettyBlobURL } from '$lib/shared'
 
 /**
  * The minimum number of milliseconds that must elapse before we handle a "Go to
@@ -119,13 +120,25 @@ export async function goToDefinition(
 
 export function openReferences(
     view: EditorView,
-    _documentInfo: DocumentInfo,
+    documentInfo: DocumentInfo,
     occurrence: Definition['occurrence']
 ): void {
+    console.log(documentInfo)
+    const url = toPrettyBlobURL({
+        repoName: documentInfo.repoName,
+        revision: documentInfo.revision,
+        commitID: documentInfo.commitID,
+        filePath: documentInfo.filePath,
+        range: occurrence.range.withIncrementedValues(),
+        viewState: 'references',
+    })
+    goto(url)
+    /*
     const offset = positionToOffset(view.state.doc, occurrence.range.start)
     if (offset) {
         showTemporaryTooltip(view, 'Not supported yet: Find references', offset, 2000)
     }
+    */
 }
 
 export function openImplementations(

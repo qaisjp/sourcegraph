@@ -1,0 +1,23 @@
+fragment ReferencePanel_LocationConnection on LocationConnection {
+    nodes {
+        ...ReferencePanelCodeExcerpt_Location
+        canonicalURL
+        resource {
+            name
+            repository {
+                name
+                id
+            }
+        }
+        range {
+            start {
+                line
+                character
+            }
+            end {
+                line
+                character
+            }
+        }
+    }
+}

@@ -25,3 +25,22 @@ fragment GitHistory_HistoryConnection on GitCommitConnection {
         endCursor
     }
 }
+
+query RepoPage_PreciseCodeIntel($repo: ID!, $revspec: String!, $filePath: String!, $line: Int!, $character: Int!, $first: Int) {
+    node(id: $repo) {
+        ... on Repository {
+            id
+            commit(rev: $revspec) {
+                id
+                blob(path: $filePath) {
+                    canonicalURL
+                    lsif {
+                        references(line: $line, character: $character, first: $first) {
+                            ...ReferencePanel_LocationConnection
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

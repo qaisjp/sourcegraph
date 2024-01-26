@@ -4,7 +4,8 @@ import { browser } from '$app/environment'
 import { fetchSidebarFileTree } from '$lib/repo/api/tree'
 
 import type { LayoutLoad } from './$types'
-import { GitHistoryQuery } from './layout.gql'
+import { GitHistoryQuery, RepoPage_PreciseCodeIntel } from './layout.gql'
+import { parseQueryAndHash } from '$lib/shared'
 
 const HISTORY_COMMITS_PER_PAGE = 20
 
@@ -26,9 +27,10 @@ if (browser) {
     }
 }
 
-export const load: LayoutLoad = async ({ parent, params }) => {
+export const load: LayoutLoad = async ({ parent, params, url }) => {
     const { resolvedRevision, repoName, graphqlClient } = await parent()
     const parentPath = getRootPath(repoName, params.path ? dirname(params.path) : REPO_ROOT)
+    const lineOrPosition = parseQueryAndHash(url.search, '')
 
     // Fetches the most recent commits for current blob, tree or repo root
     const commitHistory = graphqlClient.watchQuery({
@@ -56,5 +58,17 @@ export const load: LayoutLoad = async ({ parent, params }) => {
             commitID: resolvedRevision.commitID,
             filePath: parentPath,
         }),
+        references: lineOrPosition?.line && lineOrPosition?.character ? graphqlClient.query({
+            query: RepoPage_PreciseCodeIntel,
+            variables: {
+                repo: resolvedRevision.repo.id,
+                revspec: resolvedRevision.commitID,
+                filePath: params.path ?? '',
+                // Line and character are 1-indexed, but the API expects 0-indexed
+                line: lineOrPosition.line - 1,
+                character: lineOrPosition.character - 1,
+                first: 100,
+            },
+        }) : null,
     }
 }

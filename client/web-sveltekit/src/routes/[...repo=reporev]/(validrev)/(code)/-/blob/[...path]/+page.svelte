@@ -24,14 +24,14 @@
 
     export let data: PageData
 
-    const {
+    $: ({
         revision,
         resolvedRevision: { commitID },
         repoName,
         filePath,
         settings,
         graphqlClient,
-    } = data
+    } = data)
     // We use the latest value here because we want to keep showing the old document while loading
     // the new one.
     const { loading, combinedBlobData, set: setBlobData } = createBlobDataHandler()
@@ -53,7 +53,7 @@
 </script>
 
 <svelte:head>
-    <title>{data.filePath} - {data.displayRepoName} - Sourcegraph</title>
+    <title>{filePath} - {data.displayRepoName} - Sourcegraph</title>
 </svelte:head>
 
 <FileHeader>
@@ -95,7 +95,7 @@
                     ...blobData,
                     revision: revision ?? '',
                     commitID,
-                    repoName: repoName,
+                    repoName,
                     filePath,
                 }}
                 highlights={$combinedBlobData.highlights || ''}
