@@ -26,21 +26,27 @@ fragment GitHistory_HistoryConnection on GitCommitConnection {
     }
 }
 
-query RepoPage_PreciseCodeIntel($repo: ID!, $revspec: String!, $filePath: String!, $line: Int!, $character: Int!, $first: Int) {
-    node(id: $repo) {
-        ... on Repository {
+query RepoPage_PreciseCodeIntel($repo: String!, $revspec: String!, $filePath: String!, $line: Int!, $character: Int!, $first: Int, $after: String) {
+    repository(name: $repo) {
+        id
+        commit(rev: $revspec) {
             id
-            commit(rev: $revspec) {
-                id
-                blob(path: $filePath) {
-                    canonicalURL
-                    lsif {
-                        references(line: $line, character: $character, first: $first) {
-                            ...ReferencePanel_LocationConnection
-                        }
+            blob(path: $filePath) {
+                canonicalURL
+                lsif {
+                    references(line: $line, character: $character, first: $first, after: $after) {
+                        ...RepoPage_ReferencesLocationConnection
                     }
                 }
             }
         }
+    }
+}
+
+fragment RepoPage_ReferencesLocationConnection on LocationConnection {
+   ...ReferencePanel_LocationConnection
+    pageInfo {
+        hasNextPage
+        endCursor
     }
 }

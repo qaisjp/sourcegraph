@@ -124,11 +124,13 @@
         createCodeIntelExtension,
         syncSelection,
         temporaryTooltip,
+        positionToOffset,
     } from '$lib/web'
     import { goto } from '$app/navigation'
     import type { CodeIntelAPI } from '$lib/shared'
-    import { goToDefinition, openImplementations, openReferences } from './repo/blob'
+    import { goToDefinition, openImplementations } from './repo/blob'
     import type { LineOrPositionOrRange } from '$lib/common'
+    import { BottomPanelTab, getBottomPanelStore, getReferenceStore } from './repo/stores'
 
     export let blobInfo: BlobInfo
     export let highlights: string
@@ -141,6 +143,8 @@
     let editor: EditorView
     let container: HTMLDivElement | null = null
 
+    const referenceStore = getReferenceStore()
+    const bottomPanelStore = getBottomPanelStore()
     const lineNumbers = selectableLineNumbers({
         onSelection(range) {
             dispatch('selectline', range)
@@ -160,7 +164,19 @@
             api: codeIntelAPI,
             documentInfo: documentInfo,
             goToDefinition: (view, definition, options) => goToDefinition(documentInfo, view, definition, options),
-            openReferences,
+            openReferences (view, documentInfo, occurrence): void {
+                const {line, character} = occurrence.range.start.withIncrementedValues()
+
+                referenceStore.push({
+                    symbolName: view.state.sliceDoc(positionToOffset(view.state.doc, occurrence.range.start)!, positionToOffset(view.state.doc, occurrence.range.end)!),
+                    repoName: documentInfo.repoName,
+                    commitID: documentInfo.commitID,
+                    filePath: documentInfo.filePath,
+                    line,
+                    character,
+                })
+                bottomPanelStore.setOpen(true, BottomPanelTab.References)
+            },
             openImplementations,
             createTooltipView: options => new HovercardView(options.view, options.token, options.hovercardData),
         },

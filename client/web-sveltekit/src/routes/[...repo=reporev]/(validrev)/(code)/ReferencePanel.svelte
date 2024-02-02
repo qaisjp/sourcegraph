@@ -3,10 +3,19 @@
     import Scroller from '$lib/Scroller.svelte'
     import { displayRepoName, toPrettyBlobURL, toRepoURL } from "$lib/shared"
     import ReferencePanelCodeExcerpt from "./ReferencePanelCodeExcerpt.svelte"
+    import Tooltip from "$lib/Tooltip.svelte"
+    import { createEventDispatcher } from "svelte"
+    import { Button } from "$lib/wildcard"
+    import type { Reference } from "$lib/repo/stores"
+    import LoadingSpinner from "$lib/LoadingSpinner.svelte"
 
     type Range = NonNullable<ReferencePanel_LocationConnection['nodes'][0]['range']>
 
-    export let connection: ReferencePanel_LocationConnection
+    export let symbolBreadcrumbs: Reference[]
+    export let connection: ReferencePanel_LocationConnection|null
+    export let loading: boolean
+
+    const dispatch = createEventDispatcher<{ selectSymbol: string }>()
 
     function dedupeLocations(locations: ReferencePanel_LocationConnection['nodes']): ReferencePanel_LocationConnection['nodes'] {
         const seen = new Set<string>()
@@ -43,39 +52,84 @@
         })
     }
 
-    $: locations = dedupeLocations(connection.nodes)
+    $: locations = connection ? dedupeLocations(connection.nodes) : []
 </script>
 
-<Scroller margin={600}>
-    <ul>
-        {#each locations as location (location.canonicalURL)}
-            <li>
-                <span class="code"><ReferencePanelCodeExcerpt {location} /></span>
-                <a href={getLocationHref(location)} class="location">
-                        <span class="file">{location.resource.name}</span><!--
--->{#if location.range}
-                        <span class="range">:{location.range.start.line + 1}:{location.range.start.character + 1}</span>
-                    {/if}
-                </a>
-                <span class="repo">
-                    <a href={toRepoURL({repoName: location.resource.repository.name, revision: location.resource.commit.oid})}>{displayRepoName(location.resource.repository.name)}</a></span>
-            </li>
+<div class="root">
+    <div class="breadcrumbs">
+        {#each symbolBreadcrumbs as breadcrumb}
+            <span><Button variant="link" on:click={() => dispatch('selectSymbol', breadcrumb.symbolName)}>{breadcrumb.symbolName}</Button></span>
         {/each}
-    </ul>
-</Scroller>
+    </div>
+    <div class="content">
+        {#if loading}
+            <LoadingSpinner center/>
+        {:else if !connection}
+            <p>Hover over a symbol and click "Find references" to see references to the symbol.</p>
+        {:else}
+            <Scroller margin={600} on:more>
+                <ul>
+                    {#each locations as location (location.canonicalURL)}
+                        <li>
+                            <a href={getLocationHref(location)} class="location">
+                                <span class="code-file">
+                                    <span class="code">
+                                        <ReferencePanelCodeExcerpt {location} />
+                                    </span>
+                                    <span class="file">
+                                        <Tooltip tooltip={location.resource.path}>
+                                            <span>{location.resource.name}</span>
+                                        </Tooltip>
+                                    </span>
+                                </span>
+                                {#if location.range}
+                                    <span class="range">:{location.range.start.line + 1}:{location.range.start.character + 1}</span>
+                                {/if}
+                                <span class="repo">{displayRepoName(location.resource.repository.name)}</span>
+                            </a>
+                        </li>
+                    {/each}
+                </ul>
+            </Scroller>
+        {/if}
+    </div>
+</div>
 
 <style lang="scss">
+    .root {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .content {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .breadcrumbs {
+        border-bottom: 1px solid var(--border-color);
+
+        span + span:before {
+            content: '›',
+        }
+
+        span:last-child :global(button) {
+            font-weight: bold;
+        }
+    }
+
     ul {
         margin: 0;
         padding: 0;
         display: grid;
-        grid-template-columns: auto auto auto auto;
-        grid-column-gap: 1rem;
+        grid-template-columns: auto auto auto;
     }
 
     li {
         display: grid;
-        grid-column: span 4;
+        grid-column: span 3;
         grid-template-columns: subgrid;
     }
 
@@ -83,23 +137,38 @@
         border-top: 1px solid var(--border-color);
     }
 
-    .code {
-        min-width: 0;
-    }
-
-    .location {
+    a {
         display: grid;
-        grid-column: span 2;
+        grid-column: span 3;
         grid-template-columns: subgrid;
-        grid-column-gap: 0;
+        color: inherit;
+        align-items: center;
+        padding: 0.125rem 0;
+        &:hover {
+            text-decoration: none;
+            background-color: var(--color-bg-2);
+        }
     }
 
     .location, .repo {
         color: var(--text-muted);
     }
 
+    .code-file {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        gap: 0.5rem;
+    }
+
+    .code {
+        flex: 1;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+
     .repo {
-        padding-right: 1rem;
+        padding: 0 1rem;
     }
 
     .file {
@@ -110,9 +179,4 @@
         color: var(--oc-red-7);
         text-align: left;
     }
-
-    a {
-        color: inherit
-    }
-
 </style>

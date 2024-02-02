@@ -1,3 +1,10 @@
+<script lang="ts" context="module">
+    interface RepoCapture {
+        bottomPanelOpen: boolean
+        bottomPanelSelectedTab: number
+        historyPanel: HistoryCapture
+    }
+</script>
 <script lang="ts">
     import { onMount, tick } from 'svelte'
 
@@ -14,22 +21,25 @@
     import type { LayoutData, Snapshot } from './$types'
     import FileTree from './FileTree.svelte'
     import type { Scalars } from '$lib/graphql-operations'
-    import type { GitHistory_HistoryConnection } from './layout.gql'
+    import type { GitHistory_HistoryConnection, RepoPage_ReferenceLocationConnection } from './layout.gql'
     import Tabs from '$lib/Tabs.svelte'
     import TabPanel from '$lib/TabPanel.svelte'
     import ReferencePanel from './ReferencePanel.svelte'
+    import {createBottomPanelStore, createReferenceStore} from '$lib/repo/stores'
 
     export let data: LayoutData
 
-    export const snapshot: Snapshot<{ selectedTab: number | null; historyPanel: HistoryCapture }> = {
+    export const snapshot: Snapshot<RepoCapture> = {
         capture() {
             return {
-                selectedTab,
+                bottomPanelOpen: $bottomPanelStore.open,
+                bottomPanelSelectedTab: $bottomPanelStore.selectedTab,
                 historyPanel: historyPanel?.capture(),
             }
         },
         async restore(data) {
-            selectedTab = data.selectedTab
+            console.log('restore', data)
+            bottomPanelStore.setOpen(data.bottomPanelOpen, data.bottomPanelSelectedTab)
             // Wait until DOM was updated to possibly show the history panel
             await tick()
             if (data.historyPanel) {
@@ -78,47 +88,68 @@
         // Only fetch more commits if there are more commits and if we are not already
         // fetching more commits.
         if ($commitHistoryQuery && !$commitHistoryQuery.loading && commitHistory?.pageInfo?.hasNextPage) {
-            data.commitHistory.fetchMore({
+            data.commitHistoryQuery.fetchMore({
                 variables: {
                     afterCursor: afterCursor,
                 },
             })
         }
     }
+
     async function selectTab(event: { detail: number | null }) {
         if (event.detail === null) {
             const url = new URL($page.url)
             url.searchParams.delete('rev')
             await goto(url, { replaceState: true, keepFocus: true, noScroll: true })
+            bottomPanelStore.setOpen(false)
+        } else {
+            bottomPanelStore.setOpen(true, event.detail)
         }
-        selectedTab = event.detail
+
     }
 
+    const sidebarSize = getSeparatorPosition('repo-sidebar', 0.2)
+    const bottomPanelStore = createBottomPanelStore()
+    const referenceStore = createReferenceStore()
     let treeProvider: FileTreeProvider | null = null
-    let selectedTab: number | null = null
     let historyPanel: HistoryPanel
+    let commitHistory: GitHistory_HistoryConnection | null
+    let references: RepoPage_ReferenceLocationConnection | null
 
     $: ({ revision, parentPath, resolvedRevision } = data)
-    $: commitID = resolvedRevision.commitID
-    $: repoID = resolvedRevision.repo.id
     // Only update the file tree provider (which causes the tree to rerender) when repo, revision/commit or file path
     // update
-    $: updateFileTreeProvider(repoID, commitID, parentPath)
-    $: commitHistoryQuery = data.commitHistory
-    let commitHistory: GitHistory_HistoryConnection | null
+    $: updateFileTreeProvider(resolvedRevision.repo.id, resolvedRevision.commitID, parentPath)
+    $: commitHistoryQuery = data.commitHistoryQuery
     $: if (commitHistoryQuery) {
         // Reset commit history when the query observable changes. Without
         // this we are showing the commit history of the previously selected
         // file/folder until the new commit history is loaded.
         commitHistory = null
     }
-    $: commitHistory =
-        $commitHistoryQuery?.data.node?.__typename === 'Repository'
+    $: commitHistory = $commitHistoryQuery?.data.node?.__typename === 'Repository'
             ? $commitHistoryQuery.data.node.commit?.ancestors ?? null
             : null
-
-    const sidebarSize = getSeparatorPosition('repo-sidebar', 0.2)
     $: sidebarWidth = `max(200px, ${$sidebarSize * 100}%)`
+
+    // The currently active reference
+    $: activeReference = referenceStore.current
+    // The observable query to fetch references (due to infinite scrolling)
+    $: referenceQuery = $activeReference ? data.getReferencesQuery({
+        repoName: $activeReference.repoName,
+        commitID: $activeReference.commitID,
+        filePath: $activeReference.filePath,
+        character: $activeReference.character,
+        line: $activeReference.line,
+    }) : null
+    $: if (referenceQuery) {
+        // Reset commit history when the query observable changes. Without
+        // this we are showing the commit history of the previously selected
+        // file/folder until the new commit history is loaded.
+        references = null
+    }
+    $: references = $referenceQuery?.data?.repository?.commit?.blob?.lsif?.references ?? null
+    $: referencesLoading = referenceQuery && !references || $referenceQuery?.loading || false
 
     onMount(() => {
         // We want the whole page to be scrollable and hide page and repo navigation
@@ -148,8 +179,8 @@
     {/if}
     <div class="main">
         <slot />
-        <div class="bottom-panel" class:open={selectedTab !== null}>
-            <Tabs selected={selectedTab} toggable on:select={selectTab}>
+        <div class="bottom-panel" class:open={$bottomPanelStore.open}>
+            <Tabs selected={$bottomPanelStore.open ? $bottomPanelStore.selectedTab : null} toggable on:select={selectTab}>
                 <TabPanel title="History">
                     {#key $page.params.path}
                         <HistoryPanel
@@ -161,17 +192,30 @@
                         />
                     {/key}
                 </TabPanel>
-                {#if data.references && $page.route.id?.includes('/blob/')}
-                    <TabPanel title="References">
-                        {#await data.references}
-                            <LoadingSpinner center={false} />
-                        {:then result}
-                            {#if result.data.node?.__typename === 'Repository' && result.data.node.commit?.blob?.lsif}
-                                <ReferencePanel connection={result.data.node.commit.blob.lsif.references} />
-                            {/if}
-                        {/await}
-                    </TabPanel>
-                {/if}
+                <TabPanel title="References">
+                    <ReferencePanel
+                        connection={references}
+                        symbolBreadcrumbs={$referenceStore.references}
+                        loading={referencesLoading}
+                        on:selectSymbol={event => {
+                            const index = $referenceStore.references.findIndex(
+                                breadcrumb => breadcrumb.symbolName === event.detail
+                            )
+                            if (index !== -1) {
+                                referenceStore.select(index)
+                            }
+                        }}
+                        on:more={() => {
+                            if ($referenceQuery && !$referenceQuery.loading && references?.pageInfo?.hasNextPage) {
+                                referenceQuery?.fetchMore({
+                                    variables: {
+                                        after: references.pageInfo.endCursor,
+                                    },
+                                })
+                            }
+                        }}
+                    />
+                </TabPanel>
             </Tabs>
         </div>
     </div>

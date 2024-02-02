@@ -121,6 +121,11 @@ export const getGraphQLClient = once(async (): Promise<GraphQLClient> => {
             },
             GitBlobLSIFData: {
                 merge: true,
+                fields: {
+                    references: listLikeForwardConnection({
+                        keyArgs: ['line', 'character', 'filter'],
+                    })
+                },
             },
             // Signature is not normalized. Data from multiple requests needs
             // to be merged, not replaced, in order to not lose data.

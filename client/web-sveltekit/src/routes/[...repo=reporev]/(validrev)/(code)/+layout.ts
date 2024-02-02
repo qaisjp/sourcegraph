@@ -30,10 +30,9 @@ if (browser) {
 export const load: LayoutLoad = async ({ parent, params, url }) => {
     const { resolvedRevision, repoName, graphqlClient } = await parent()
     const parentPath = getRootPath(repoName, params.path ? dirname(params.path) : REPO_ROOT)
-    const lineOrPosition = parseQueryAndHash(url.search, '')
 
     // Fetches the most recent commits for current blob, tree or repo root
-    const commitHistory = graphqlClient.watchQuery({
+    const commitHistoryQuery = graphqlClient.watchQuery({
         query: GitHistoryQuery,
         variables: {
             repo: resolvedRevision.repo.id,
@@ -44,31 +43,38 @@ export const load: LayoutLoad = async ({ parent, params, url }) => {
         },
         notifyOnNetworkStatusChange: true,
     })
-    if (!graphqlClient.readQuery({ query: GitHistoryQuery, variables: commitHistory.variables })) {
+    if (!graphqlClient.readQuery({ query: GitHistoryQuery, variables: commitHistoryQuery.variables })) {
         // Eagerly fetch data if it isn't in the cache already. This ensures that the data is fetched
         // as soon as possible, not only after the layout subscribes to the query.
-        commitHistory.refetch()
+        commitHistoryQuery.refetch()
+    }
+
+    function getReferencesQuery(args: {repoName: string, commitID: string, filePath: string, line: number, character: number, after?: string}) {
+        return graphqlClient.watchQuery({
+            query: RepoPage_PreciseCodeIntel,
+            variables: {
+                repo: args.repoName,
+                revspec: args.commitID,
+                filePath: args.filePath,
+                // Line and character are 1-indexed, but the API expects 0-indexed
+                line: args.line - 1,
+                character: args.character - 1,
+                first: 100,
+                after: args.after ?? null,
+            },
+            notifyOnNetworkStatusChange: true,
+        })
+
     }
 
     return {
         parentPath,
-        commitHistory,
+        commitHistoryQuery,
+        getReferencesQuery,
         fileTree: fetchSidebarFileTree({
             repoID: resolvedRevision.repo.id,
             commitID: resolvedRevision.commitID,
             filePath: parentPath,
         }),
-        references: lineOrPosition?.line && lineOrPosition?.character ? graphqlClient.query({
-            query: RepoPage_PreciseCodeIntel,
-            variables: {
-                repo: resolvedRevision.repo.id,
-                revspec: resolvedRevision.commitID,
-                filePath: params.path ?? '',
-                // Line and character are 1-indexed, but the API expects 0-indexed
-                line: lineOrPosition.line - 1,
-                character: lineOrPosition.character - 1,
-                first: 100,
-            },
-        }) : null,
     }
 }
