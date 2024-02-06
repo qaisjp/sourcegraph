@@ -504,7 +504,7 @@ func NewFlatJob(searchInputs *search.Inputs, f query.Flat) (job.Job, error) {
 // file paths. We pass in the original query.Basic in addition to the TextPatternInfo just
 // for convenience, so we can use methods like query.VisitPattern.
 func getPathRegexps(b query.Basic, p *search.TextPatternInfo) (pathRegexps []*regexp.Regexp) {
-	for _, pattern := range p.IncludePatterns {
+	for _, pattern := range p.IncludePaths {
 		if p.IsCaseSensitive {
 			pathRegexps = append(pathRegexps, regexp.MustCompile(pattern))
 		} else {
@@ -669,8 +669,8 @@ func toTextPatternInfo(b query.Basic, resultTypes result.Types, defaultLimit int
 		IsStructuralPat:              b.IsStructural(),
 		IsCaseSensitive:              b.IsCaseSensitive(),
 		FileMatchLimit:               int32(count),
-		IncludePatterns:              filesInclude,
-		ExcludePattern:               query.UnionRegExps(filesExclude),
+		IncludePaths:                 filesInclude,
+		ExcludePaths:                 query.UnionRegExps(filesExclude),
 		PatternMatchesPath:           resultTypes.Has(result.TypePath),
 		PatternMatchesContent:        resultTypes.Has(result.TypeFile),
 		Languages:                    langInclude,

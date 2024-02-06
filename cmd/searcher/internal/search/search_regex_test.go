@@ -374,8 +374,8 @@ func TestMaxMatches(t *testing.T) {
 
 // Tests that:
 //
-// - IncludePatterns can match the path in any order
-// - A path must match all (not any) of the IncludePatterns
+// - IncludePaths can match the path in any order
+// - A path must match all (not any) of the IncludePaths
 // - An empty pattern is allowed
 func TestPathMatches(t *testing.T) {
 	zipData, err := createZip(map[string]string{

@@ -52,8 +52,8 @@ func Search(
 		Branch: branch,
 		PatternInfo: protocol.PatternInfo{
 			Query:                        p.Query,
-			ExcludePattern:               p.ExcludePattern,
-			IncludePatterns:              p.IncludePatterns,
+			ExcludePattern:               p.ExcludePaths,
+			IncludePatterns:              p.IncludePaths,
 			Languages:                    p.Languages,
 			CombyRule:                    p.CombyRule,
 			Select:                       p.Select.Root(),
