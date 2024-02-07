@@ -349,9 +349,14 @@ func TestMaxMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	lm, err := toLangMatcher(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel, sender := newLimitedStreamCollector(context.Background(), maxMatches)
 	defer cancel()
-	err = regexSearch(ctx, m, pm, zf, true, false, false, sender, 0)
+	err = regexSearch(ctx, m, pm, lm, zf, true, false, false, sender, 0)
 	fileMatches := sender.collected
 	limitHit := sender.LimitHit()
 
@@ -449,6 +454,7 @@ func TestRegexSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	lm := &allLangMatcher{}
 
 	zipData, _ := createZip(map[string]string{
 		"a.go":      "aaaaa11111",
@@ -462,6 +468,7 @@ func TestRegexSearch(t *testing.T) {
 		ctx                   context.Context
 		m                     matchTree
 		pm                    *pathMatcher
+		lm                    langMatcher
 		zf                    *zipFile
 		limit                 int
 		patternMatchesContent bool
@@ -474,12 +481,13 @@ func TestRegexSearch(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "nil matchTree returns a FileMatch with no LineMatches",
+			name: "allMatchTree returns a FileMatch with no LineMatches",
 			args: args{
 				ctx: context.Background(),
 				// Check this case specifically.
 				m:                     &allMatchTree{},
 				pm:                    pm,
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -501,6 +509,7 @@ func TestRegexSearch(t *testing.T) {
 						},
 					}},
 				pm:                    &pathMatcher{},
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -535,6 +544,7 @@ func TestRegexSearch(t *testing.T) {
 						},
 					}},
 				pm:                    &pathMatcher{},
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -548,6 +558,7 @@ func TestRegexSearch(t *testing.T) {
 				ctx:                   context.Background(),
 				m:                     &andMatchTree{},
 				pm:                    pm,
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -569,6 +580,7 @@ func TestRegexSearch(t *testing.T) {
 						},
 					}},
 				pm:                    &pathMatcher{},
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -600,6 +612,7 @@ func TestRegexSearch(t *testing.T) {
 						},
 					}},
 				pm:                    &pathMatcher{},
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -613,6 +626,7 @@ func TestRegexSearch(t *testing.T) {
 				ctx:                   context.Background(),
 				m:                     &orMatchTree{},
 				pm:                    &pathMatcher{},
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   false,
 				patternMatchesContent: true,
@@ -628,6 +642,7 @@ func TestRegexSearch(t *testing.T) {
 					re: regexp.MustCompile("go"),
 				},
 				pm:                    pm,
+				lm:                    lm,
 				zf:                    file,
 				patternMatchesPaths:   true,
 				patternMatchesContent: true,
@@ -641,8 +656,7 @@ func TestRegexSearch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel, sender := newLimitedStreamCollector(tt.args.ctx, tt.args.limit)
 			defer cancel()
-			err := regexSearch(ctx, tt.args.m, tt.args.pm, tt.args.zf, tt.args.patternMatchesContent, tt.args.patternMatchesPaths, false, sender, 0)
-
+			err := regexSearch(ctx, tt.args.m, tt.args.pm, tt.args.lm, tt.args.zf, tt.args.patternMatchesContent, tt.args.patternMatchesPaths, false, sender, 0)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("regexSearch() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -275,7 +275,7 @@ func filteredStructuralSearch(
 		extensionHint = filepath.Ext(matchedPaths[0])
 	}
 
-	return structuralSearch(ctx, logger, comby.ZipPath(zipPath), subset(matchedPaths), extensionHint, a.Value, p.CombyRule, p.Languages, repo, contextLines, sender)
+	return structuralSearch(ctx, logger, comby.ZipPath(zipPath), subset(matchedPaths), extensionHint, a.Value, p.CombyRule, p.IncludeLangs, repo, contextLines, sender)
 }
 
 // toMatcher returns the matcher that parameterizes structural search. It

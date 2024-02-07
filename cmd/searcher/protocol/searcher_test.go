@@ -33,7 +33,7 @@ func TestRequestProtoRoundtrip(t *testing.T) {
 			Limit:                        0,
 			PatternMatchesContent:        false,
 			PatternMatchesPath:           false,
-			Languages:                    nil,
+			IncludeLangs:                 []string{},
 			CombyRule:                    "",
 			Select:                       "",
 		},

@@ -99,8 +99,9 @@ type PatternInfo struct {
 	// considered a match.
 	PatternMatchesPath bool
 
-	// Languages is the languages passed via the lang filters (e.g., "lang:c")
-	Languages []string
+	// IncludeLangs and ExcludeLangs are the languages passed via the lang filters (e.g., "lang:c")
+	IncludeLangs []string
+	ExcludeLangs []string
 
 	// CombyRule is a rule that constrains matching for structural search.
 	// It only applies when IsStructuralPat is true.
@@ -137,8 +138,11 @@ func (p *PatternInfo) String() string {
 	if p.Limit > 0 {
 		args = append(args, fmt.Sprintf("limit:%d", p.Limit))
 	}
-	for _, lang := range p.Languages {
+	for _, lang := range p.IncludeLangs {
 		args = append(args, fmt.Sprintf("lang:%s", lang))
+	}
+	for _, lang := range p.ExcludeLangs {
+		args = append(args, fmt.Sprintf("-lang:%s", lang))
 	}
 	if p.Select != "" {
 		args = append(args, fmt.Sprintf("select:%s", p.Select))
@@ -177,7 +181,7 @@ func (r *Request) ToProto() *proto.SearchRequest {
 			PatternMatchesContent:        r.PatternInfo.PatternMatchesContent,
 			PatternMatchesPath:           r.PatternInfo.PatternMatchesPath,
 			CombyRule:                    r.PatternInfo.CombyRule,
-			Languages:                    r.PatternInfo.Languages,
+			IncludeLangs:                 r.PatternInfo.IncludeLangs,
 			Select:                       r.PatternInfo.Select,
 		},
 		FetchTimeout:    durationpb.New(r.FetchTimeout),
@@ -202,7 +206,8 @@ func (r *Request) FromProto(req *proto.SearchRequest) {
 			Limit:                        int(req.PatternInfo.Limit),
 			PatternMatchesContent:        req.PatternInfo.PatternMatchesContent,
 			PatternMatchesPath:           req.PatternInfo.PatternMatchesPath,
-			Languages:                    req.PatternInfo.Languages,
+			IncludeLangs:                 req.PatternInfo.IncludeLangs,
+			ExcludeLangs:                 req.PatternInfo.ExcludeLangs,
 			CombyRule:                    req.PatternInfo.CombyRule,
 			Select:                       req.PatternInfo.Select,
 		},

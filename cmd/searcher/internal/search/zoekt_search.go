@@ -113,7 +113,7 @@ func zoektSearch(ctx context.Context, logger log.Logger, client zoekt.Streamer, 
 		// Cancel the context on completion so that the writer doesn't
 		// block indefinitely if this stops reading.
 		defer cancel()
-		return structuralSearch(ctx, logger, comby.Tar{TarInputEventC: tarInputEventC}, all, extensionHint, atom.Value, args.CombyRule, args.Languages, repo, int32(searchOpts.NumContextLines), sender)
+		return structuralSearch(ctx, logger, comby.Tar{TarInputEventC: tarInputEventC}, all, extensionHint, atom.Value, args.CombyRule, args.IncludeLangs, repo, int32(searchOpts.NumContextLines), sender)
 	})
 
 	pool.Go(func() error {

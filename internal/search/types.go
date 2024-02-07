@@ -272,6 +272,9 @@ type TextPatternInfo struct {
 	IncludePaths []string
 	ExcludePaths string
 
+	IncludeLangs []string
+	ExcludeLangs []string
+
 	PathPatternsAreCaseSensitive bool
 
 	PatternMatchesContent bool

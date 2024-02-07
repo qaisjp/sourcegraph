@@ -32,9 +32,14 @@ func regexSearchBatch(
 		return nil, err
 	}
 
+	lm, err := toLangMatcher(p)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel, sender := newLimitedStreamCollector(ctx, p.Limit)
 	defer cancel()
-	err = regexSearch(ctx, m, pm, zf, p.PatternMatchesContent, p.PatternMatchesPath, p.IsCaseSensitive, sender, contextLines)
+	err = regexSearch(ctx, m, pm, lm, zf, p.PatternMatchesContent, p.PatternMatchesPath, p.IsCaseSensitive, sender, contextLines)
 	return sender.collected, err
 }
 
@@ -56,6 +61,7 @@ func regexSearch(
 	ctx context.Context,
 	m matchTree,
 	pm *pathMatcher,
+	lm langMatcher,
 	zf *zipFile,
 	patternMatchesContent, patternMatchesPaths bool,
 	isCaseSensitive bool,
@@ -137,7 +143,7 @@ func regexSearch(
 				f := &files[idx]
 
 				// decide whether to process, record that decision
-				if !pm.Matches(f.Name) {
+				if !pm.Matches(f.Name) || !lm.CouldMatchPath(f.Name) {
 					filesSkipped.Inc()
 					continue
 				}
@@ -158,6 +164,12 @@ func regexSearch(
 					}
 					fileMatchBuf = transformBuf[:len(fileBuf)]
 					casetransform.BytesToLowerASCII(fileMatchBuf, fileBuf)
+				}
+
+				langMatch := lm.Matches(f.Name, fileMatchBuf)
+				if !langMatch {
+					filesSkipped.Inc()
+					continue
 				}
 
 				// find limit+1 matches so we know whether we hit the limit

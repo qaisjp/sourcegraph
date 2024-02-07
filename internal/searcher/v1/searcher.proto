@@ -156,7 +156,7 @@ message OrNode {
 }
 
 message PatternInfo {
-  reserved 1, 2, 3, 5;
+  reserved 1, 2, 3, 5, 14;
 
   // is_structural if true will treat the pattern as a Comby structural search
   // pattern.
@@ -204,10 +204,6 @@ message PatternInfo {
   // zoekt for the file list in the frontend and passes it to searcher.
   string comby_rule = 13;
 
-  // languages is the list of languages passed via the lang filters (e.g.,
-  // "lang:c")
-  repeated string languages = 14;
-
   // select is the value of the the select field in the query. It is not
   // necessary to use it since selection is done after the query completes, but
   // exposing it can enable optimizations.
@@ -216,4 +212,9 @@ message PatternInfo {
   // query defines the query to match files against. It supports regexp
   // patterns optionally combined through boolean operators.
   QueryNode query = 16;
+
+  // include_langs and exclude_langs are the list of languages passed via the
+  //  lang filters (e.g., "lang:c")
+  repeated string include_langs = 17;
+  repeated string exclude_langs = 18;
 }
