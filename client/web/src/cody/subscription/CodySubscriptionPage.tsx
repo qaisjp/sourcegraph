@@ -6,6 +6,7 @@ import classNames from 'classnames'
 import { useNavigate } from 'react-router-dom'
 
 import { useQuery } from '@sourcegraph/http-client'
+import { TelemetryV2Props } from '@sourcegraph/shared/src/telemetry'
 import {
     Badge,
     Button,
@@ -36,7 +37,7 @@ import { UpgradeToProModal } from './UpgradeToProModal'
 
 import styles from './CodySubscriptionPage.module.scss'
 
-interface CodySubscriptionPageProps {
+interface CodySubscriptionPageProps extends TelemetryV2Props {
     isSourcegraphDotCom: boolean
     authenticatedUser?: AuthenticatedUser | null
 }
@@ -54,6 +55,7 @@ export const useCodyPaymentsUrl = (): string => {
 export const CodySubscriptionPage: React.FunctionComponent<CodySubscriptionPageProps> = ({
     isSourcegraphDotCom,
     authenticatedUser,
+    telemetryRecorder,
 }) => {
     const parameters = useSearchParameters()
 
@@ -66,7 +68,8 @@ export const CodySubscriptionPage: React.FunctionComponent<CodySubscriptionPageP
 
     useEffect(() => {
         eventLogger.log(EventName.CODY_SUBSCRIPTION_PAGE_VIEWED, { utm_source }, { utm_source })
-    }, [utm_source])
+        telemetryRecorder.recordEvent('cody.plan-selection', 'view')
+    }, [utm_source, telemetryRecorder])
 
     const { data } = useQuery<UserCodyPlanResult, UserCodyPlanVariables>(USER_CODY_PLAN, {})
 
@@ -239,6 +242,9 @@ export const CodySubscriptionPage: React.FunctionComponent<CodySubscriptionPageP
                                                         tier: 'free',
                                                     }
                                                 )
+                                                telemetryRecorder.recordEvent('cody.plan-selection', 'click', {
+                                                    metadata: { tier: 0 },
+                                                })
                                                 if (arePaymentsEnabled) {
                                                     window.location.href = manageSubscriptionRedirectURL
                                                     return
@@ -260,6 +266,9 @@ export const CodySubscriptionPage: React.FunctionComponent<CodySubscriptionPageP
                                                 { tier: 'pro' },
                                                 { tier: 'pro' }
                                             )
+                                            telemetryRecorder.recordEvent('cody.plan-selection', 'click', {
+                                                metadata: { tier: 1 },
+                                            })
                                             if (arePaymentsEnabled) {
                                                 window.location.href = manageSubscriptionRedirectURL
                                                 return
@@ -379,6 +388,9 @@ export const CodySubscriptionPage: React.FunctionComponent<CodySubscriptionPageP
                                         { tier: 'enterprise' },
                                         { tier: 'enterprise' }
                                     )
+                                    telemetryRecorder.recordEvent('cody.plan-selection', 'click', {
+                                        metadata: { tier: 2 },
+                                    })
                                 }}
                             >
                                 Request info
@@ -461,6 +473,7 @@ export const CodySubscriptionPage: React.FunctionComponent<CodySubscriptionPageP
                         setShowCancelPro(false)
                     }}
                     authenticatedUser={authenticatedUser}
+                    telemetryRecorder={telemetryRecorder}
                 />
             )}
         </>
