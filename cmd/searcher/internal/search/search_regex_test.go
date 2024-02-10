@@ -12,7 +12,6 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/grafana/regexp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sourcegraph/sourcegraph/cmd/searcher/protocol"
@@ -446,16 +445,8 @@ func init() {
 	os.RemoveAll(githubStore.Path)
 }
 
+// TODO(jtibs): normalize languages before checking
 func TestRegexSearch(t *testing.T) {
-	pm, err := toPathMatcher(&protocol.PatternInfo{
-		IncludePatterns: []string{`a\.go`},
-		ExcludePattern:  `README\.md`,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	lm := &allLangMatcher{}
-
 	zipData, _ := createZip(map[string]string{
 		"a.go":      "aaaaa11111",
 		"b.go":      "bbbbb22222",
@@ -465,14 +456,9 @@ func TestRegexSearch(t *testing.T) {
 	file, _ := mockZipFile(zipData)
 
 	type args struct {
-		ctx                   context.Context
-		m                     matchTree
-		pm                    *pathMatcher
-		lm                    langMatcher
-		zf                    *zipFile
-		limit                 int
-		patternMatchesContent bool
-		patternMatchesPaths   bool
+		ctx context.Context
+		p   *protocol.PatternInfo
+		zf  *zipFile
 	}
 	tests := []struct {
 		name    string
@@ -481,17 +467,16 @@ func TestRegexSearch(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "allMatchTree returns a FileMatch with no LineMatches",
+			name: "empty pattern returns a FileMatch with no LineMatches",
 			args: args{
 				ctx: context.Background(),
 				// Check this case specifically.
-				m:                     &allMatchTree{},
-				pm:                    pm,
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.PatternNode{Value: ""},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: []protocol.FileMatch{{Path: "a.go"}},
 		},
@@ -499,21 +484,17 @@ func TestRegexSearch(t *testing.T) {
 			name: "'and' matchTree with matches",
 			args: args{
 				ctx: context.Background(),
-				m: &orMatchTree{
-					children: []matchTree{
-						&regexMatchTree{
-							re: regexp.MustCompile("aaaaa"),
+				p: &protocol.PatternInfo{
+					Query: &protocol.AndNode{
+						Children: []protocol.QueryNode{
+							&protocol.PatternNode{Value: "aaaaa"},
+							&protocol.PatternNode{Value: "11111"},
 						},
-						&regexMatchTree{
-							re: regexp.MustCompile("11111"),
-						},
-					}},
-				pm:                    &pathMatcher{},
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+					},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: []protocol.FileMatch{{
 				Path: "a.go",
@@ -534,35 +515,29 @@ func TestRegexSearch(t *testing.T) {
 			name: "'and' matchTree with no match",
 			args: args{
 				ctx: context.Background(),
-				m: &andMatchTree{
-					children: []matchTree{
-						&regexMatchTree{
-							re: regexp.MustCompile("aaaaa"),
+				p: &protocol.PatternInfo{
+					Query: &protocol.AndNode{
+						Children: []protocol.QueryNode{
+							&protocol.PatternNode{Value: "aaaaa"},
+							&protocol.PatternNode{Value: "22222"},
 						},
-						&regexMatchTree{
-							re: regexp.MustCompile("22222"),
-						},
-					}},
-				pm:                    &pathMatcher{},
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+					},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: nil,
 		},
 		{
 			name: "empty 'and' matchTree",
 			args: args{
-				ctx:                   context.Background(),
-				m:                     &andMatchTree{},
-				pm:                    pm,
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.AndNode{},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: []protocol.FileMatch{{Path: "a.go"}},
 		},
@@ -570,21 +545,17 @@ func TestRegexSearch(t *testing.T) {
 			name: "'or' matchTree with matches",
 			args: args{
 				ctx: context.Background(),
-				m: &orMatchTree{
-					children: []matchTree{
-						&regexMatchTree{
-							re: regexp.MustCompile("aaaaa"),
+				p: &protocol.PatternInfo{
+					Query: &protocol.OrNode{
+						Children: []protocol.QueryNode{
+							&protocol.PatternNode{Value: "aaaaa"},
+							&protocol.PatternNode{Value: "99999"},
 						},
-						&regexMatchTree{
-							re: regexp.MustCompile("99999"),
-						},
-					}},
-				pm:                    &pathMatcher{},
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+					},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: []protocol.FileMatch{{
 				Path: "a.go",
@@ -602,67 +573,99 @@ func TestRegexSearch(t *testing.T) {
 			name: "'or' matchTree with no match",
 			args: args{
 				ctx: context.Background(),
-				m: &orMatchTree{
-					children: []matchTree{
-						&regexMatchTree{
-							re: regexp.MustCompile("jjjjj"),
+				p: &protocol.PatternInfo{
+					Query: &protocol.OrNode{
+						Children: []protocol.QueryNode{
+							&protocol.PatternNode{Value: "jjjjj"},
+							&protocol.PatternNode{Value: "99999"},
 						},
-						&regexMatchTree{
-							re: regexp.MustCompile("99999"),
-						},
-					}},
-				pm:                    &pathMatcher{},
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+					},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: nil,
 		},
 		{
 			name: "empty 'or' matchTree",
 			args: args{
-				ctx:                   context.Background(),
-				m:                     &orMatchTree{},
-				pm:                    &pathMatcher{},
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   false,
-				patternMatchesContent: true,
-				limit:                 5,
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.OrNode{},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+				},
+				zf: file,
 			},
 			wantFm: nil,
 		},
 		{
 			name: "matchTree matches on content AND path",
 			args: args{
-				ctx: context.Background(),
-				m: &regexMatchTree{
-					re: regexp.MustCompile("go"),
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.PatternNode{Value: "go"},
+					PatternMatchesPath:    true,
+					PatternMatchesContent: true,
 				},
-				pm:                    pm,
-				lm:                    lm,
-				zf:                    file,
-				patternMatchesPaths:   true,
-				patternMatchesContent: true,
-				limit:                 5,
+				zf: file,
 			},
 			wantFm: []protocol.FileMatch{{Path: "a.go"}},
+		},
+		{
+			name: "include lang filters with match",
+			args: args{
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.PatternNode{Value: "aaaaa"},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+					IncludeLangs: []string{"go"},
+				},
+				zf: file,
+			},
+			wantFm: []protocol.FileMatch{{Path: "a.go"}},
+		},
+		{
+			name: "include lang filters with no match",
+			args: args{
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.PatternNode{Value: "aaaaa"},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+					IncludeLangs: []string{"Markdown", "Go"},
+				},
+				zf: file,
+			},
+			wantFm: []protocol.FileMatch{},
+		},
+		{
+			name: "exclude lang filters",
+			args: args{
+				p: &protocol.PatternInfo{
+					Query:                 &protocol.PatternNode{Value: "aaaaa"},
+					PatternMatchesPath:    false,
+					PatternMatchesContent: true,
+					ExcludeLangs: []string{"go"},
+				},
+				zf: file,
+			},
+			wantFm: []protocol.FileMatch{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel, sender := newLimitedStreamCollector(tt.args.ctx, tt.args.limit)
-			defer cancel()
-			err := regexSearch(ctx, tt.args.m, tt.args.pm, tt.args.lm, tt.args.zf, tt.args.patternMatchesContent, tt.args.patternMatchesPaths, false, sender, 0)
+			patternInfo := tt.args.p
+			patternInfo.IncludePatterns = []string{`a\.go`}
+			patternInfo.ExcludePattern = `README\.md`
+			patternInfo.Limit = 5
+
+			gotFm, err := regexSearchBatch(context.Background(), tt.args.p, tt.args.zf, 0)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("regexSearch() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(sender.collected, tt.wantFm) {
-				t.Errorf("regexSearch() gotFm = %v, want %v", sender.collected, tt.wantFm)
+			if !reflect.DeepEqual(gotFm, tt.wantFm) {
+				t.Errorf("regexSearch() gotFm = %v, want %v", gotFm, tt.wantFm)
 			}
 		})
 	}
